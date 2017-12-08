@@ -1,12 +1,16 @@
 __author__ = 'phlai'
 import pandas as pd
 from sqlalchemy import create_engine
-
+from datetime import datetime
+import os
+from .util import str2datetime
 
 class StockData:
     def __init__(self,
                  tse_file='../../Charm/StockInfo/',
-                 otc_file='../../Charm/StockInfo_otc/'):
+                 otc_file='../../Charm/StockInfo_otc/',
+                 ind_file='../../Charm/IndexData',
+                 pay_file='../../Charm/IndexPayData'):
         #  read db_register
         self.tse_db_register = pd.read_csv(
             tse_file + 'DB_Register.csv',
@@ -64,6 +68,29 @@ class StockData:
         self.otc_mb_engines = {}
         for idx in self.otc_mb_register.DB_Idx.unique():
             self.otc_mb_engines[idx] = create_engine('sqlite:///%sMB_%d.db' % (otc_file, idx), echo=False)
+
+        #  Get indice data
+        self.ind_file = ind_file
+        data_list = []
+        now_time = datetime.now()
+        for year in range(2003, now_time.year + 1):
+            file_name = '%s/%d.csv' % (self.ind_file, year)
+            if os.path.isfile(file_name):
+                df = pd.read_csv(file_name, dtype={'date': str})
+                df['date'] = df['date'].apply(str2datetime)
+                data_list.append(df)
+        self.ind_data = pd.concat(data_list)
+
+        self.pay_file = pay_file
+        data_list = []
+        now_time = datetime.now()
+        for year in range(2003, now_time.year + 1):
+            file_name = '%s/%d.csv' % (self.ind_file, year)
+            if os.path.isfile(file_name):
+                df = pd.read_csv(file_name, dtype={'date': str})
+                df['date'] = df['date'].apply(str2datetime)
+                data_list.append(df)
+        self.pay_data = pd.concat(data_list)
 
     def check_data_file(self, stock_code):
         #  -1: no data ; 1: in tse ; 2: in otc ; 3: both
@@ -197,6 +224,8 @@ class StockData:
             df = pd.concat([df1, df2])
             df.sort_index(inplace=True)
             return df
+
+    # def get_actions(self, stock_code):
 
     # def get_action(self, stock_code):
         #  TO DO

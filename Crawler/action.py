@@ -5,7 +5,7 @@ import pandas as pd
 from pandas import DataFrame
 
 # from pandas_datareader import data
-# from datetime import datetime, timedelta
+from datetime import datetime
 
 from sqlalchemy import create_engine
 
@@ -52,34 +52,70 @@ def get_actions(stock_code):
 
 def get_all_data(stock_file):
 
+
+    act_register_loc = stock_file + '/ActRegister.csv'
+    if os.path.isfile(act_register_loc):
+        act_register = pd.read_csv(act_register_loc,
+                                   dtype={'StockCode': str, 'DB_Idx': int})
+        engines = {}
+        for db_idx in act_register['DB_Idx'].unique():
+            engines[db_idx] = create_engine('sqlite:///%s/Act_%d.db' % (stock_file, db_idx), echo=False)
+        store_idx = act_register['DB_Idx'].max()
+    else:
+        # init
+        act_register = DataFrame(columns=['StockCode', 'DB_Idx'])
+        store_idx = 0
+        engines = {store_idx: create_engine('sqlite:///%s/Act_0.db' % stock_file, echo=False)}
+
     db_register_loc = stock_file + '/DB_Register.csv'
     db_register = pd.read_csv(db_register_loc,
                               dtype={'StockCode': str, 'DB_Idx': int})
     db_register.set_index('StockCode', inplace=True)
-
-    #  build
-    engines = {}
+    db_engines = {}
     for db_idx in db_register['DB_Idx'].unique():
-        engines[db_idx] = create_engine('sqlite:///%s/Act_%d.db' % (stock_file, db_idx),
-                                        echo=False)
+        db_engines[db_idx] = create_engine('sqlite:///%s/DB_%d.db' % (stock_file, db_idx), echo=False)
+
+    current_year = datetime.today().year
 
     for row in db_register.itertuples():
+        #  get Data from Internet
         stock_code = str(row[0])
         db_idx = row[1]
-        # print(stock_code)
-        # print(type(stock_code))
+        price_df = pd.read_sql(stock_code, con=db_engines[db_idx])
+
+        if (price_df['date'].iloc[-1].year <= current_year-2) and (stock_code in act_register.StockCode.values):
+            print(stock_code + '  is too old and collected before, PASS')
+            continue
+
         actions = get_actions(stock_code)
+
         if isinstance(actions, DataFrame):
-            print(stock_code + '  get Action')
             #  success
-            if engines[db_idx].has_table(stock_code):
-                ori_table = pd.read_sql(stock_code, con=engines[db_idx])
-                if not ori_table.equals(actions):
-                    actions.to_sql(name=stock_code, con=engines[db_idx], if_exists='replace', index=False)
+            if stock_code in act_register.StockCode.values:
+                #  if we have old data in Database
+                engine_idx = act_register[act_register['StockCode'] == stock_code]['DB_Idx'][0]
+                original_df = pd.read_sql(stock_code, con=engines[engine_idx])
+                if original_df.equals(actions):
+                    print(stock_code + " 's  Action NO Update")
+                    continue
+                else:
+                    print(stock_code + " 's  Action Update")
+                    actions.to_sql(name=stock_code, con=engines[engine_idx], if_exists='replace', index=False)
             else:
-                actions.to_sql(name=stock_code, con=engines[db_idx], if_exists='replace', index=False)
+                print(stock_code + " got  new Action")
+                #  New Data
+                #  check store index
+                if len(engines[store_idx].table_names()) >= 500:
+                    store_idx += 1
+                    engines[store_idx] = create_engine('sqlite:///%s/Act_%d.db' % (stock_file, store_idx), echo=False)
+                actions.to_sql(name=stock_code, con=engines[store_idx], index=False)
+                register_insert_idx = act_register.shape[0]
+                act_register.loc[register_insert_idx, 'StockCode'] = stock_code
+                act_register.loc[register_insert_idx, 'DB_Idx'] = store_idx
         else:
             print(stock_code + '  NO Action')
+
+    act_register.to_csv(act_register_loc, index=False)
 
 
 class UpdateActions:
