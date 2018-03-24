@@ -117,6 +117,12 @@ class StockData:
             idx = self.otc_db_register.loc[stock_code, 'DB_Idx']
             df2 = pd.read_sql(stock_code, con=self.otc_db_engines[idx])
             #  DONE: fix format
+            #  volume = 成交量(股)
+            #  transaction = 成交筆數 
+            #  turnover = 總成交金額
+            #  UD = 上下符號
+            #  difference = 漲跌價差
+            #  PE_ratio = 本益比
             otc2tse_price_col = ['code', 'name', 'volume', 'transaction',
                                  'turnover', 'open', 'high', 'low', 'close', 'UD',
                                  'difference', 'last_buy', 'last_buy_volume',
@@ -138,10 +144,17 @@ class StockData:
             return df
 
     def get_insti3(self, stock_code):
-        data_file = self.check_data_file(stock_code)
-
-        if data_file == -1:
+        #  -1: no data ; 1: in tse ; 2: in otc ; 3: both
+        if stock_code in self.tse_insti3_register.index:
+            if stock_code in self.otc_insti3_register.index:
+                data_file = 3
+            else:
+                data_file = 1
+        elif stock_code in self.otc_insti3_register.index:
+            data_file = 2
+        else:
             return -1
+
         df1 = -1
         df2 = -1
         if (data_file == 1) or (data_file == 3):
@@ -181,10 +194,21 @@ class StockData:
             return df
 
     def get_mb(self, stock_code):
-        data_file = self.check_data_file(stock_code)
 
-        if data_file == -1:
+        if stock_code in self.tse_mb_register.index:
+            if stock_code in self.otc_mb_register.index:
+                data_file = 3
+            else:
+                data_file = 1
+        elif stock_code in self.otc_mb_register.index:
+            data_file = 2
+        else:
             return -1
+
+        # data_file = self.check_data_file(stock_code)
+
+        # if data_file == -1:
+        #     return -1
         df1 = df2 = -1
         final_mb_col = ['code', 'name', '資買', '資賣', '現償',
                         '前資餘額', '資餘額', '資限額', '資使用率(%)',

@@ -22,20 +22,31 @@ import logging
 
 from .util import clear_comma
 
-_filter_len = 4
+#  三大法人(機構投資人) Institutional investors
+#  買賣超 Net Buy / Net Ssell
+#  散戶 Retail Investors
+#  大盤指數 (TSE) index/ TAIEX
+#  外資 Foreign Investor(s) / Foreign Investment Institution
+#  投信 Investment Trust / Domestic Institution (用於與外資作區別時)
+#  自營商 Dealer
+
+# _filter_len = 4
+_try_time = 3
 
 
 def get_tse_one_day(spec_date):
+    #  source: http://www.twse.com.tw/zh/page/trading/exchange/MI_INDEX.html
     date_str = '{0}{1:02d}{2:02d}'.format(spec_date.year, spec_date.month, spec_date.day)
     url = 'http://www.twse.com.tw/exchangeReport/MI_INDEX'
-
+    #  ALL => all data
+    #  ALLBUT0999 => all data, no
     # Get json data
-    for loop1 in range(_filter_len):
+    for loop1 in range(_try_time):
         query_params = {
             'date': date_str,
             'response': 'json',
-            'type': 'ALLBUT0999',
-            #  'ALL',
+            # 'type': 'ALLBUT0999',
+            'type': 'ALL',
             '_': str(round(time.time() * 1000) - 500)
         }
         page = requests.get(url, params=query_params)
@@ -71,8 +82,9 @@ def get_tse_one_day(spec_date):
 
 
 def get_otc_one_day(spec_date):
+    #  source: http://www.tpex.org.tw/web/stock/aftertrading/daily_close_quotes/stk_quote.php?l=zh-tw
     date_str = '{0}/{1:02d}/{2:02d}'.format(spec_date.year-1911, spec_date.month, spec_date.day)
-    for loop1 in range(_filter_len):
+    for loop1 in range(_try_time):
         ttime = str(int(time.time()*100))
         url = 'http://www.tpex.org.tw/web/stock/aftertrading/daily_close_quotes/' \
             'stk_quote_result.php?l=zh-tw&d={}&_={}'.format(date_str, ttime)
@@ -101,7 +113,7 @@ def get_otc_one_day(spec_date):
 def get_insti3(spec_date):
     date_str = '{0}{1:02d}{2:02d}'.format(spec_date.year, spec_date.month, spec_date.day)
     url = 'http://www.twse.com.tw/fund/T86'
-    for loop1 in range(_filter_len):
+    for loop1 in range(_try_time):
         query_params = {
             'date': date_str,
             'response': 'json',
@@ -126,9 +138,10 @@ def get_insti3(spec_date):
 
 def get_foreinv(spec_date):
     #  TSE Foreign Investment
+    #  source: http://www.twse.com.tw/zh/page/trading/fund/TWT38U.html
     date_str = '{0}{1:02d}{2:02d}'.format(spec_date.year, spec_date.month, spec_date.day)
     url = 'http://www.twse.com.tw/fund/TWT38U'
-    for loop1 in range(_filter_len):
+    for loop1 in range(_try_time):
         query_params = {
             'response': 'json',
             'date': date_str,
@@ -142,25 +155,29 @@ def get_foreinv(spec_date):
         if 'data' not in content:
             time.sleep(3)
             continue
-        col = content['fields']
-        col.remove('')
-        col = ["F_"+col[x] if x > 0 else col[x] for x in range(len(col))]
+        # col = content['fields']
+        # col.remove('')
+        # col = ["F_"+col[x] if x > 0 else col[x] for x in range(len(col))]
+        col = ["證券代號", "F_證券名稱", "F_買進股數", "F_賣出股數", "F_買賣超股數"]
         df = DataFrame(content['data'])
         df.drop(0, axis=1, inplace=True)
+        if df.shape[1] == 11:
+            df = df[[1,2, 9, 10, 11]]
         df.columns = col
         # df = df.applymap(lambda x: re.sub("[, ]", "", x))  # clear comma
         df = df.applymap(clear_comma)
         df.set_index("證券代號", inplace=True)
-        df = df[df.index.str.len() <= _filter_len]
+        # df = df[df.index.str.len() <= _filter_len]
         return df
     return -1
 
 
 def get_domeins(spec_date):
+    #  source: http://www.twse.com.tw/zh/page/trading/fund/TWT44U.html
     date_str = '{0}{1:02d}{2:02d}'.format(spec_date.year, spec_date.month, spec_date.day)
     url = 'http://www.twse.com.tw/fund/TWT44U'
 
-    for loop1 in range(_filter_len):
+    for loop1 in range(_try_time):
         query_params = {
             'response': 'json',
             'date': date_str,
@@ -184,16 +201,17 @@ def get_domeins(spec_date):
         # df = df.applymap(lambda x: re.sub("[, ]", "", x))  # clear comma
         df = df.applymap(clear_comma)
         df.set_index("證券代號", inplace=True)
-        df = df[df.index.str.len() <= _filter_len]
+        # df = df[df.index.str.len() <= _filter_len]
         return df
     return -1
 
 
 def get_dealer(spec_date):
+    #  source: http://www.twse.com.tw/zh/page/trading/fund/TWT43U.html
     date_str = '{0}{1:02d}{2:02d}'.format(spec_date.year, spec_date.month, spec_date.day)
     url = 'http://www.twse.com.tw/fund/TWT43U'
     #  http://www.twse.com.tw/fund/TWT43U?response=json&date=20171006&_=1507529758676
-    for loop1 in range(_filter_len):
+    for loop1 in range(_try_time):
         query_params = {
             'response': 'json',
             'date': date_str,
@@ -228,7 +246,7 @@ def get_dealer(spec_date):
         # df = df.applymap(lambda x: re.sub("[, ]", "", x))  # clear comma
         df = df.applymap(clear_comma)
         df.set_index("證券代號", inplace=True)
-        df = df[df.index.str.len() <= _filter_len]
+        # df = df[df.index.str.len() <= _filter_len]
         return df
     return -1
 
@@ -249,16 +267,17 @@ def get_merge_inv3(spec_date):
         con_df.append(dome)
     if isinstance(deal, DataFrame):
         con_df.append(deal)
-    if len(con_df) != 3:
-        return -1
-    else:
-        mrg = pd.concat(con_df, axis=1)
-        mrg['date'] = spec_date
-        mrg.fillna('0', inplace=True)
-        mrg.index.name = 'code'
-        mrg.reset_index(inplace=True)
-        # mrg.rename(columns={'證券代號': 'code'}, inplace=True)
-        return mrg
+    # if len(con_df) != 3:
+    #     return -1
+    # else:
+
+    mrg = pd.concat(con_df, axis=1)
+    mrg['date'] = spec_date
+    mrg.fillna('0', inplace=True)
+    mrg.index.name = 'code'
+    mrg.reset_index(inplace=True)
+    # mrg.rename(columns={'證券代號': 'code'}, inplace=True)
+    return mrg
 
 
 #  GET OTC Insti3 Data
@@ -274,7 +293,7 @@ def get_otc_insti3_p1(spec_date):
         return -1
     day_str = '{0}{1:02d}{2:02d}'.format(spec_date.year - 1911, spec_date.month, spec_date.day)
     url = 'http://hist.tpex.org.tw/Hist/STOCK/3INSTI/DAILY_TRADE/BIGD%sS_N.html' % day_str
-    for coll_time in range(_filter_len):
+    for coll_time in range(_try_time):
         try:
             html_input = pd.read_html(url)
             result = html_input[0]
@@ -302,7 +321,7 @@ def get_otc_insti3_p2(spec_date):
 
     day_str = '{0}{1:02d}{2:02d}'.format(spec_date.year - 1911, spec_date.month, spec_date.day)
     url = 'http://hist.gretai.org.tw/hist/stock/3insti/DAILY_TRADE/BIGD_%sS_Q.html' % day_str
-    for coll_time in range(_filter_len):
+    for coll_time in range(_try_time):
         try:
             html_input = pd.read_html(url, encoding='big5')
             result = html_input[1]
@@ -327,6 +346,8 @@ def get_otc_insti3_p3(spec_date):
     #  http://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?
     #  l=zh-tw&se=EW&t=D&d=106/10/05&_=1508345330544
     #  2007/04/20 ~ 2014/11/28 , 2014/12/01 ~ present
+    #  
+    #  http://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&se=AL&t=D&d=106/12/13&_=1513275131548
 
     lowerbound = datetime(2007, 4, 20)
     if spec_date < lowerbound:
@@ -336,10 +357,11 @@ def get_otc_insti3_p3(spec_date):
     url = 'http://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_result.php'
     if spec_date >= datetime(2014, 12, 1):
         url = 'http://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php'
-    for loop1 in range(_filter_len):
+    for loop1 in range(_try_time):
         query_params = {
             'l': 'zh-tw',
-            'se': 'EW',
+            # 'se': 'EW',
+            'se': 'AL',
             't': 'D',
             'd': date_str,
             '_': str(round(time.time() * 1000) - 500)
@@ -380,22 +402,55 @@ def get_otc_insti3(spec_date):
                      '自營買', '自營賣', '自營買賣',
                      '三大買賣']
         df.columns = col_label
+        
         df['自營買(自行)'] = df['自營買']
         df['自營賣(自行)'] = df['自營賣']
         df['自營買賣(自行)'] = df['自營買賣']
-        df['自營買(避險)'] = df['自營賣(避險)'] = df['自營買賣(避險)'] = '0'
+        df['自營買(避險)'] = df['自營賣(避險)'] = df['自營買賣(避險)'] = 0.0
+        col_tem = ['外資買', '外資賣', '外資買賣',
+                   '投信買', '投信賣', '投信買賣',
+                   '自營買(自行)', '自營賣(自行)', '自營買賣(自行)',
+                   '自營買(避險)', '自營賣(避險)', '自營買賣(避險)']
+        df[col_tem] = df[col_tem].astype(float)
     else:
         df = get_otc_insti3_p3(spec_date)
         if isinstance(df, int):
                 return -1
-        col_label = ['code', '證券名稱', '外資買', '外資賣', '外資買賣',
-                     '投信買', '投信賣', '投信買賣',
-                     '自營買賣', '自營買(自行)', '自營賣(自行)', '自營買賣(自行)',
-                     '自營買(避險)', '自營賣(避險)', '自營買賣(避險)', '三大買賣']
-        df.columns = col_label
-        df['自營買'] = df['自營買(自行)'] + df['自營買(避險)']
-        df['自營賣'] = df['自營賣(自行)'] + df['自營賣(避險)']
-        df['自營買賣'] = df['自營買賣(自行)'] + df['自營買賣(避險)']
+        if df.shape[1] != 25:# fix at 20180322
+            if df.shape[1] == 17:
+                df.drop(16, axis=1, inplace=True)
+            
+            col_label = ['code', '證券名稱', '外資買', '外資賣', '外資買賣',
+                         '投信買', '投信賣', '投信買賣',
+                         '自營買賣', '自營買(自行)', '自營賣(自行)', '自營買賣(自行)',
+                         '自營買(避險)', '自營賣(避險)', '自營買賣(避險)', '三大買賣']
+            df.columns = col_label
+            col_tem = ['外資買', '外資賣', '外資買賣',
+                       '投信買', '投信賣', '投信買賣',
+                       '自營買(自行)', '自營賣(自行)', '自營買賣(自行)',
+                       '自營買(避險)', '自營賣(避險)', '自營買賣(避險)']
+            df[col_tem] = df[col_tem].astype(float)
+            df['自營買'] = df['自營買(自行)'] + df['自營買(避險)']
+            df['自營賣'] = df['自營賣(自行)'] + df['自營賣(避險)']
+            df['自營買賣'] = df['自營買賣(自行)'] + df['自營買賣(避險)']
+            
+        elif df.shape[1] == 25:
+            
+            df.drop([2,3,4,5,6,7,24], axis=1, inplace=True)
+            
+            col_label = ['code', '證券名稱', '外資買', '外資賣', '外資買賣',
+                         '投信買', '投信賣', '投信買賣',
+                         '自營買(自行)', '自營賣(自行)', '自營買賣(自行)',
+                         '自營買(避險)', '自營賣(避險)', '自營買賣(避險)',
+                         '自營買', '自營賣', '自營買賣', '三大買賣']
+            df.columns = col_label
+            col_tem = ['外資買', '外資賣', '外資買賣',
+                       '投信買', '投信賣', '投信買賣',
+                       '自營買(自行)', '自營賣(自行)', '自營買賣(自行)',
+                       '自營買(避險)', '自營賣(避險)', '自營買賣(避險)',
+                       '自營買', '自營賣', '自營買賣']
+            df[col_tem] = df[col_tem].astype(float)
+            
 
     col_label_final = ['code', '證券名稱', '外資買', '外資賣', '外資買賣',
                        '投信買', '投信賣', '投信買賣',
@@ -405,7 +460,7 @@ def get_otc_insti3(spec_date):
     df = df[col_label_final]
     if df['code'].dtype != 'O':
         df['code'] = df['code'].astype(str)
-    df = df[df['code'].str.len() <= _filter_len]
+    # df = df[df['code'].str.len() <= _filter_len]
     # df = df.applymap(lambda x: re.sub("[, ]", "", x))  # clear comma
     df['date'] = spec_date
 
@@ -419,7 +474,7 @@ def get_tse_margin_balance(spec_date):
     #  2001/1/2 ~ present
     date_str = '{0}{1:02d}{2:02d}'.format(spec_date.year, spec_date.month, spec_date.day)
     url = 'http://www.twse.com.tw/exchangeReport/MI_MARGN'
-    for loop1 in range(_filter_len):
+    for loop1 in range(_try_time):
         query_params = {
             'response': 'json',
             'date': date_str,
@@ -444,7 +499,7 @@ def get_tse_margin_balance(spec_date):
         df = DataFrame(content['data'], columns=col_label)
         df = df.applymap(lambda x: re.sub("[, ]", "", x))  # clear comma
         df.set_index("code", inplace=True)
-        df = df[df.index.str.len() <= _filter_len]
+        # df = df[df.index.str.len() <= _filter_len]
         df.reset_index(inplace=True)
         df['date'] = spec_date
         return df
@@ -458,7 +513,7 @@ def get_otc_margin_balance(spec_date):
     #  2007/1/2 ~ present
     date_str = '{0}/{1:02d}/{2:02d}'.format(spec_date.year-1911, spec_date.month, spec_date.day)
     url = 'http://www.tpex.org.tw/web/stock/margin_trading/margin_balance/margin_bal_result.php'
-    for loop1 in range(_filter_len):
+    for loop1 in range(_try_time):
         query_params = {
             'l': 'zh-tw',
             'd': date_str,
@@ -481,7 +536,7 @@ def get_otc_margin_balance(spec_date):
         df = DataFrame(content['aaData'], columns=col_label)
         df = df.applymap(lambda x: re.sub("[, ]", "", x))  # clear comma
         df.set_index("code", inplace=True)
-        df = df[df.index.str.len() <= _filter_len]
+        # df = df[df.index.str.len() <= _filter_len]
         df.reset_index(inplace=True)
         df['date'] = spec_date
         return df

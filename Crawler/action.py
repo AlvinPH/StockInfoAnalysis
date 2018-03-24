@@ -27,7 +27,7 @@ def get_actions(stock_code):
         return -1
 
     action_resource = 'http://stock.wearn.com/dividend.asp?kind='
-    max_col_time = 5
+    max_col_time = 3
     for coll_time in range(max_col_time):
         try:
             html_input = pd.read_html(action_resource + stock_code)
@@ -41,10 +41,15 @@ def get_actions(stock_code):
                 actions.drop('index', axis=1, inplace=True)
                 actions.fillna(-1, inplace=True)
                 return actions
+            else:
+                return -1
         except urllib.error.HTTPError:
             print('HTTPError')
         except urllib.error.URLError:
             print('URLError')
+        except KeyboardInterrupt:
+            print('KeyboardInterrupt')
+            return -1000
         except:
             print('Other Error')
     return -1
@@ -52,8 +57,8 @@ def get_actions(stock_code):
 
 def get_all_data(stock_file):
 
-
     act_register_loc = stock_file + '/ActRegister.csv'
+    check_old_data_flag = True
     if os.path.isfile(act_register_loc):
         act_register = pd.read_csv(act_register_loc,
                                    dtype={'StockCode': str, 'DB_Idx': int})
@@ -66,6 +71,7 @@ def get_all_data(stock_file):
         act_register = DataFrame(columns=['StockCode', 'DB_Idx'])
         store_idx = 0
         engines = {store_idx: create_engine('sqlite:///%s/Act_0.db' % stock_file, echo=False)}
+        check_old_data_flag = False
 
     db_register_loc = stock_file + '/DB_Register.csv'
     db_register = pd.read_csv(db_register_loc,
@@ -80,12 +86,13 @@ def get_all_data(stock_file):
     for row in db_register.itertuples():
         #  get Data from Internet
         stock_code = str(row[0])
-        db_idx = row[1]
-        price_df = pd.read_sql(stock_code, con=db_engines[db_idx])
 
-        if (price_df['date'].iloc[-1].year <= current_year-2) and (stock_code in act_register.StockCode.values):
-            print(stock_code + '  is too old and collected before, PASS')
-            continue
+        if check_old_data_flag:
+            db_idx = row[1]
+            price_df = pd.read_sql(stock_code, con=db_engines[db_idx])
+            if price_df['date'].iloc[-1].year <= current_year-2:
+                print(stock_code + '  is too old and collected before, PASS')
+                continue
 
         actions = get_actions(stock_code)
 
@@ -108,10 +115,13 @@ def get_all_data(stock_file):
                 if len(engines[store_idx].table_names()) >= 500:
                     store_idx += 1
                     engines[store_idx] = create_engine('sqlite:///%s/Act_%d.db' % (stock_file, store_idx), echo=False)
-                actions.to_sql(name=stock_code, con=engines[store_idx], index=False)
+                    act_register.to_csv(act_register_loc, index=False)
+                actions.to_sql(name=stock_code, con=engines[store_idx], if_exists='replace', index=False)
                 register_insert_idx = act_register.shape[0]
                 act_register.loc[register_insert_idx, 'StockCode'] = stock_code
                 act_register.loc[register_insert_idx, 'DB_Idx'] = store_idx
+        elif actions == -1000:
+            break
         else:
             print(stock_code + '  NO Action')
 

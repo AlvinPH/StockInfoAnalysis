@@ -11,11 +11,10 @@ if __name__ == "__main__":
 
 
     #  Collect All Data
-    # Crawler.collect_main(['tse_price', 'tse_insti3', 'tse_mb', 'otc_price', 'otc_insti3', 'otc_mb'])
-    # Crawler.collect_main(['tse_price', 'tse_mb'])
-    # Crawler.collect_main(['otc_insti3'])
-
+    # Crawler.collect_main(['tse_price', 'tse_insti3', 'tse_mb'])
+    Crawler.collect_main(['tse_mb'])
+    Crawler.collect_main(['otc_price', 'otc_insti3', 'otc_mb'])
     # Collect Actions
 
-    collect = Crawler.UpdateActions(['StockInfo_otc', 'StockInfo'])
-    collect.check_all_data()
+    # collect = Crawler.UpdateActions(['StockInfo_otc', 'StockInfo'])
+    # collect.check_all_data()

@@ -73,7 +73,8 @@ def get_month_indices_report(spec_date):
         return datetime(int(t[0]) + 1911, int(t[1]), int(t[2]))
 
     df[0] = df[0].apply(proc)
-    df[1] = df[1].apply(lambda x: float(re.sub("[, ]", "", x)))  # clear comma
+    for col in range(1,5):
+        df[col] = df[col].apply(lambda x: float(re.sub("[, ]", "", x)))  # clear comma
     df.columns = ['date', 'open', 'high', 'low', 'close']
 
     return df
