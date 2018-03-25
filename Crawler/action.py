@@ -87,10 +87,14 @@ def get_all_data(stock_file):
         #  get Data from Internet
         stock_code = str(row[0])
 
+        if len(stock_code) > 4:
+            print("Only collect Normal Stock: " + stock_code)
+            continue
+
         if check_old_data_flag:
             db_idx = row[1]
             price_df = pd.read_sql(stock_code, con=db_engines[db_idx])
-            if price_df['date'].iloc[-1].year <= current_year-2:
+            if price_df['date'].iloc[-1].year <= current_year-3:
                 print(stock_code + '  is too old and collected before, PASS')
                 continue
 
@@ -112,6 +116,7 @@ def get_all_data(stock_file):
                 print(stock_code + " got  new Action")
                 #  New Data
                 #  check store index
+                
                 if len(engines[store_idx].table_names()) >= 500:
                     store_idx += 1
                     engines[store_idx] = create_engine('sqlite:///%s/Act_%d.db' % (stock_file, store_idx), echo=False)
