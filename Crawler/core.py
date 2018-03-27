@@ -5,6 +5,12 @@ from datetime import datetime
 import os
 from .util import str2datetime
 
+def _fix_actions_data(df):
+    float_col = ['盈餘配股  (元/股)', '公積配股  (元/股)', '配股  總張數',
+                 '股東股利  (元/股)', '員工紅利總金額(仟元)', '董監酬勞  (仟元)']
+    df[float_col] = df[float_col].astype(float)
+    return df.replace('-1', -1)
+
 class StockData:
     def __init__(self,
                  tse_file='../../Charm/StockInfo/',
@@ -68,6 +74,25 @@ class StockData:
         self.otc_mb_engines = {}
         for idx in self.otc_mb_register.DB_Idx.unique():
             self.otc_mb_engines[idx] = create_engine('sqlite:///%sMB_%d.db' % (otc_file, idx), echo=False)
+
+        #  read actions register
+        self.tse_act_register = pd.read_csv(tse_file + 'ActRegister.csv',
+                                           dtype={'StockCode': str, 'DB_Idx': int})
+        self.tse_act_register.set_index('StockCode', inplace=True)
+
+        self.otc_act_register = pd.read_csv(otc_file + 'ActRegister.csv',
+                                           dtype={'StockCode': str, 'DB_Idx': int})
+        self.otc_act_register.set_index('StockCode', inplace=True)
+
+        #  create actions engines
+        self.tse_act_engines = {}
+        for idx in self.tse_act_register.DB_Idx.unique():
+            self.tse_act_engines[idx] = create_engine('sqlite:///%sAct_%d.db' % (tse_file, idx), echo=False)
+
+        self.otc_act_engines = {}
+        for idx in self.otc_act_register.DB_Idx.unique():
+            self.otc_act_engines[idx] = create_engine('sqlite:///%sAct_%d.db' % (otc_file, idx), echo=False)
+
 
         #  Get indice data
         self.ind_file = ind_file
@@ -249,25 +274,14 @@ class StockData:
             df.sort_index(inplace=True)
             return df
 
-    # def get_actions(self, stock_code):
+    def get_actions(self, stock_code):
+        #  -1: no data ; 1: in tse ; 2: in otc ; 3: both
+        if stock_code in self.tse_act_register.index:
+            idx = self.tse_act_register.loc[stock_code, 'DB_Idx']
 
-    # def get_action(self, stock_code):
-        #  TO DO
-
-        # data_file = check_data_file(stock_code)
-        # if data_file == 1:
-        #     idx = self.tse_db_register.loc[stock_code, 'DB_Idx']
-        #     df1 = pd.read_sql(stock_code, con=self.tse_mb_engines[idx])
-        #     return df1
-        # if data_file >= 2:
-        #     idx = self.otc_mb_register.loc[stock_code, 'DB_Idx']
-        #     df2 = pd.read_sql(stock_code, con=self.otc_mb_engines[idx])
-
-        # if self.db_idx == -1:
-        #     self.action = -1
-        #     return -1
-        # file_name = self.file_list[self.data_file_loc]
-        # engine = create_engine(
-        #     'sqlite:///%s/Act_%d.db' % (file_name, self.db_idx),
-        #     echo=False)
-        # self.action = pd.read_sql(self.stock_code, con=engine)
+            return _fix_actions_data(pd.read_sql(stock_code, con=self.tse_act_engines[idx]))
+        elif stock_code in self.otc_insti3_register.index:
+            idx = self.otc_act_register.loc[stock_code, 'DB_Idx']
+            return _fix_actions_data(pd.read_sql(stock_code, con=self.otc_act_engines[idx]))
+        else:
+            return -1

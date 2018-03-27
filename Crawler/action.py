@@ -54,6 +54,14 @@ def get_actions(stock_code):
             print('Other Error')
     return -1
 
+def check_action_equal(old_df, new_df):
+    float_col = ['盈餘配股  (元/股)', '公積配股  (元/股)', '配股  總張數',
+                 '股東股利  (元/股)', '員工紅利總金額(仟元)', '董監酬勞  (仟元)']
+    old_df[float_col] = old_df[float_col].astype(float)
+    old_df.replace('-1', -1, inplace=True)
+    new_df[float_col] = new_df[float_col].astype(float)
+    new_df.replace('-1', -1, inplace=True)
+    return old_df.equals(new_df)
 
 def get_all_data(stock_file):
 
@@ -104,9 +112,11 @@ def get_all_data(stock_file):
             #  success
             if stock_code in act_register.StockCode.values:
                 #  if we have old data in Database
-                engine_idx = act_register[act_register['StockCode'] == stock_code]['DB_Idx'][0]
+                # print(stock_code)
+                engine_idx = act_register[act_register['StockCode'] == stock_code]['DB_Idx'].iloc[0]
                 original_df = pd.read_sql(stock_code, con=engines[engine_idx])
-                if original_df.equals(actions):
+                # if original_df.equals(actions):
+                if check_action_equal(original_df, actions):
                     print(stock_code + " 's  Action NO Update")
                     continue
                 else:
